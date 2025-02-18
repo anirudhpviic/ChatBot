@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OpenAI } from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { responseFormat } from './formats/response.format';
-import { SYSTEM_ROLE_CONTENT } from './constants';
+import { SYSTEM_CONTENT } from './constants';
 
 @Injectable()
 export class ChatService {
@@ -12,17 +12,18 @@ export class ChatService {
   }
   async sendCompletion(userText: string) {
     const completion = await this.openai.beta.chat.completions.parse({
-      model: process.env.OPENAI_MODEL_NAME,
+      model: process.env.OPENAI_MODEL_NAME as string,
       messages: [
         {
           role: 'system',
-          content: SYSTEM_ROLE_CONTENT,
+          content: SYSTEM_CONTENT,
         },
         {
           role: 'user',
           content: userText,
         },
       ],
+      store: true,
       response_format: zodResponseFormat(responseFormat, 'response_format'),
     });
 

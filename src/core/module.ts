@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validate } from './env/env.validtor';
+import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
@@ -10,6 +11,7 @@ import { validate } from './env/env.validtor';
       ignoreEnvVars: true,
       validate,
     }),
+    MongooseModule.forRoot(process.env.MONGO_URI),
   ],
 })
 export class CoreModule {}
