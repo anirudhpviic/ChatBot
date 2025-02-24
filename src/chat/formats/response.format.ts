@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const responseFormat = z.object({
+export const jokesResponseFormat = z.object({
   mood: z.string(),
   color: z.string(),
   // greetings: z.string(),
