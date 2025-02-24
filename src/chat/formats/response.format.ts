@@ -7,3 +7,7 @@ export const responseFormat = z.object({
   // introduction: z.string(),
   jokes: z.array(z.string()),
 });
+
+export const moodResponseFormat = z.object({
+  mood: z.string(),
+});

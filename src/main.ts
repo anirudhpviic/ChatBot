@@ -10,6 +10,12 @@ async function bootstrap() {
   const configService = app.get(ConfigService<EnvironmentVariables, true>);
   const httpAdaptor = app.get(HttpAdapterHost);
   app.useGlobalFilters(new AllExceptionsFilter(httpAdaptor));
+
+  // Enable CORS with wildcard
+  app.enableCors({
+    origin: '*',
+  });
+
   const server = await app.listen(configService.get('PORT'));
   server.timeout = 0;
 }
