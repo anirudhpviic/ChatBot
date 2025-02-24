@@ -3,26 +3,45 @@ import { OpenAI } from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { responseFormat } from './formats/response.format';
 import { SYSTEM_CONTENT } from './constants';
+import { Chat } from './schemas/chat.model';
+import { Model } from 'mongoose';
+import { InjectModel } from '@nestjs/mongoose';
 
 @Injectable()
 export class ChatService {
   private openai: OpenAI;
-  constructor() {
+  constructor(@InjectModel(Chat.name) private chatModel: Model<Chat>) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
-  async sendCompletion(userText: string) {
+  async sendCompletion(userText: string, userId: string) {
+    // Fetch previous chat messages
+    const previousChats = await this.chatModel
+      .find({ userId })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    // Convert previous chats into OpenAI's message format
+    const chatHistory = previousChats.flatMap((chat) => [
+      { role: 'user', content: chat.userInput },
+      {
+        role: 'assistant',
+        content: `Mood: ${chat.mood}, Color: ${chat.color}, Jokes: ${chat.jokes.join('\n')}`,
+      },
+    ]);
+
+    console.log("chatHistory", ...chatHistory);
+
+    // Construct the messages array with history + new user input
+    const messages = [
+      { role: 'system', content: SYSTEM_CONTENT },
+      ...chatHistory,
+      { role: 'user', content: userText },
+    ];
+
+
     const completion = await this.openai.beta.chat.completions.parse({
       model: process.env.OPENAI_MODEL_NAME as string,
-      messages: [
-        {
-          role: 'system',
-          content: SYSTEM_CONTENT,
-        },
-        {
-          role: 'user',
-          content: userText,
-        },
-      ],
+      messages: messages as any,
       store: true,
       response_format: zodResponseFormat(responseFormat, 'response_format'),
     });
@@ -36,6 +55,13 @@ export class ChatService {
     if (response_format.refusal) {
       throw new Error(response_format.refusal);
     }
+
+
+    await this.chatModel.create({
+      ...response_format.parsed,
+      userInput: userText,
+      userId,
+    });
 
     return response_format.parsed;
   }

@@ -8,8 +8,7 @@ export class ChatController {
   @Post('/')
   async sendCompletion(@Body() body) {
     try {
-      const res = await this.chatService.sendCompletion(body.userText);
-      console.log('res', res);
+      const res = await this.chatService.sendCompletion(body.userText,body.userId);
       return {
         success: true,
         data: res,

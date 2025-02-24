@@ -3,6 +3,7 @@ import { Document } from 'mongoose';
 
 @Schema()
 export class User extends Document {
+  @Prop({ required: true }) // Add @Prop() to define the field in MongoDB schema
   nickName: string;
 }
 
