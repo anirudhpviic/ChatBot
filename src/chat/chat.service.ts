@@ -63,7 +63,7 @@ export class ChatService {
       { role: 'user', content: chat.userInput },
       {
         role: 'assistant',
-        content: `Mood: ${chat.mood}, Color: ${chat.color}, Jokes: ${chat.jokes.join('\n')}`,
+        content: `userInput: ${chat.userInput}, response: ${chat.response}`,
       },
     ]);
 
@@ -91,12 +91,18 @@ export class ChatService {
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
       finalResponse += content;
-      console.log('chunk:', content);
+      // console.log('chunk:', content);
 
       this.chatGateway.server.emit('partialResponse', content);
     }
 
     console.log('Final response:', finalResponse);
+    const res = await this.chatModel.create({
+      userId,
+      userInput: userText,
+      response: finalResponse,
+    });
+    console.log('res', res);
     this.chatGateway.server.emit('finalResponse', finalResponse);
   }
 }

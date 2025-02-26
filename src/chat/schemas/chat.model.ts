@@ -7,16 +7,10 @@ export class Chat extends Document {
   userId: string;
 
   @Prop()
-  mood: string;
-
-  @Prop()
-  color: string;
-
-  @Prop()
   userInput: string;
 
   @Prop()
-  jokes: string[];
+  response: string;
 }
 
 export const ChatSchema = SchemaFactory.createForClass(Chat);
