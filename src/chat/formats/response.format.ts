@@ -11,3 +11,8 @@ export const jokesResponseFormat = z.object({
 export const moodResponseFormat = z.object({
   mood: z.string(),
 });
+
+export const summaryAndColorResponseFormat = z.object({
+  summary: z.string(),
+  color: z.string(),
+});

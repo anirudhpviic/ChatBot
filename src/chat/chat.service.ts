@@ -2,20 +2,27 @@ import { Injectable } from '@nestjs/common';
 import { OpenAI } from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import {
-  jokesResponseFormat,
   moodResponseFormat,
+  summaryAndColorResponseFormat,
 } from './formats/response.format';
-import { SYSTEM_CONTENT_GET_JOKES, SYSTEM_CONTENT_GET_MOOD } from './constants';
+import {
+  STREAM_LAYOUT,
+  SYSTEM_CONTENT_GET_JOKES,
+  SYSTEM_CONTENT_GET_MOOD,
+  SYSTEM_CONTENT_GET_SUMMARY_AND_COLOR,
+} from './constants';
 import { Chat } from './schemas/chat.model';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
 import { ChatGateway } from './chat.gateway';
+import { Color } from './schemas/color.model';
 
 @Injectable()
 export class ChatService {
   private openai: OpenAI;
   constructor(
     @InjectModel(Chat.name) private chatModel: Model<Chat>,
+    @InjectModel(Color.name) private colorModel: Model<Color>,
     private chatGateway: ChatGateway,
   ) {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -47,37 +54,70 @@ export class ChatService {
     return response_format.parsed.mood;
   }
 
+  async getSummary(response: string) {
+    const messages = [
+      { role: 'system', content: SYSTEM_CONTENT_GET_SUMMARY_AND_COLOR },
+      { role: 'user', content: response },
+    ];
+    const completion = await this.openai.beta.chat.completions.parse({
+      model: process.env.OPENAI_MODEL_NAME as string,
+      messages: messages as any,
+      store: true,
+      response_format: zodResponseFormat(
+        summaryAndColorResponseFormat,
+        'response_format',
+      ),
+    });
+
+    const response_format = completion.choices[0].message;
+
+    if (completion.choices[0].finish_reason === 'length') {
+      throw new Error('Incomplete response');
+    }
+
+    if (response_format.refusal) {
+      throw new Error(response_format.refusal);
+    }
+
+    return response_format.parsed;
+  }
+
   async sendCompletion(userText: string, userId: string) {
     const mood = await this.getMood(userText);
 
-    // const previousChats = await this.chatModel
-    //   .find({ userId, mood })
-    //   .sort({ createdAt: -1 })
-    //   .limit(5)
-    //   .lean();
+    const moodColorPattern = await this.colorModel.findOne({ userId });
 
-    // TODO: add mood
+    // console.log('moodColorPattern', moodColorPattern.colorPattern);
+
     const previousChats = await this.chatModel
-    .find({ userId })
-    .sort({ createdAt: -1 })
-    .limit(5)
-    .lean();
+      .find({ userId, mood })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
 
     // previous chat + new user input
     const chatHistory = previousChats.flatMap((chat) => [
-      { role: 'user', content: chat.userInput },
+      { role: 'user', content: chat.question },
       {
         role: 'assistant',
-        content: `userInput: ${chat.userInput}, response: ${chat.response}`,
+        content: `userInput: ${chat.question}, response: ${chat.response}, mood: ${chat.mood}`,
       },
     ]);
-
-    // console.log('chatHistory', ...chatHistory);
 
     const messages = [
       { role: 'system', content: SYSTEM_CONTENT_GET_JOKES },
       ...chatHistory,
       { role: 'user', content: userText },
+      { role: 'assistant', content: STREAM_LAYOUT },
+
+      // ...(moodColorPattern
+      //   ? [
+      //       {
+      //         role: 'assistant',
+      //         content: `colorPattern: ${moodColorPattern.colorPattern}`,
+      //       },
+      //     ]
+      //   : []),
     ];
 
     const stream = await this.openai.chat.completions.create({
@@ -85,10 +125,6 @@ export class ChatService {
       messages: messages as any,
       store: true,
       stream: true,
-      // response_format: zodResponseFormat(
-      //   jokesResponseFormat,
-      //   'response_format',
-      // ),
     });
 
     let finalResponse = '';
@@ -96,17 +132,31 @@ export class ChatService {
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
       finalResponse += content;
-      // console.log('chunk:', content);
-
       this.chatGateway.server.emit('partialResponse', content);
     }
 
     console.log('Final response:', finalResponse);
+
+    const { summary, color } = await this.getSummary(finalResponse);
+
     const res = await this.chatModel.create({
       userId,
-      userInput: userText,
+      question: userText,
       response: finalResponse,
+      summary,
+      mood,
     });
+
+    const colorRes = await this.colorModel.findOne({ userId });
+    if (colorRes) {
+      await this.colorModel.updateOne(
+        { userId },
+        { colorPattern: { ...colorRes.colorPattern, [mood]: color } },
+      );
+    } else {
+      await this.colorModel.create({ userId, colorPattern: { [mood]: color } });
+    }
+
     console.log('res', res);
     this.chatGateway.server.emit('finalResponse', finalResponse);
   }
