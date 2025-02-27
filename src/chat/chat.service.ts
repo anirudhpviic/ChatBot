@@ -9,13 +9,11 @@ import { SYSTEM_CONTENT_GET_JOKES, SYSTEM_CONTENT_GET_MOOD } from './constants';
 import { Chat } from './schemas/chat.model';
 import { Model } from 'mongoose';
 import { InjectModel } from '@nestjs/mongoose';
-import { Server } from 'socket.io';
 import { ChatGateway } from './chat.gateway';
 
 @Injectable()
 export class ChatService {
   private openai: OpenAI;
-  private io: Server;
   constructor(
     @InjectModel(Chat.name) private chatModel: Model<Chat>,
     private chatGateway: ChatGateway,
@@ -52,11 +50,18 @@ export class ChatService {
   async sendCompletion(userText: string, userId: string) {
     const mood = await this.getMood(userText);
 
+    // const previousChats = await this.chatModel
+    //   .find({ userId, mood })
+    //   .sort({ createdAt: -1 })
+    //   .limit(5)
+    //   .lean();
+
+    // TODO: add mood
     const previousChats = await this.chatModel
-      .find({ userId, mood })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .lean();
+    .find({ userId })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
 
     // previous chat + new user input
     const chatHistory = previousChats.flatMap((chat) => [

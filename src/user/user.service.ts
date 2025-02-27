@@ -9,10 +9,6 @@ export class UserService {
   async createUser(nickName: string) {
     const user = await (await this.userModel.create({ nickName })).save();
 
-    return {
-      greetings: `Hi ${user.nickName}`,
-      introduction: `I'm Jarvis, your quirky companion ready to sprinkle some humor into your day!`,
-      user,
-    };
+    return user;
   }
 }
